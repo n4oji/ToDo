@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToDo App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Custom scrollbar */
+        .task-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        .task-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .task-list::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 10px;
+        }
+        .task-list::-webkit-scrollbar-thumb:hover {
+            background: #a0aec0;
+        }
+        
+        /* Checkbox animation */
+        .custom-checkbox {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            border: 2px solid #4f46e5;
+            border-radius: 6px;
+            outline: none;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+        }
+        .custom-checkbox:checked {
+            background-color: #4f46e5;
+        }
+        .custom-checkbox:checked::after {
+            content: '\2713';
+            position: absolute;
+            color: white;
+            font-size: 14px;
+            left: 4px;
+            top: -1px;
+        }
+        
+        /* Task item animation */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .task-item {
+            animation: fadeIn 0.3s ease-out;
+            cursor: grab;
+        }
+        .task-item.dragging {
+            opacity: 0.5;
+            background: #f8fafc;
+            border: 1px dashed #cbd5e1;
+        }
+        
+        /* Empty state animation */
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .empty-icon {
+            animation: bounce 2s infinite;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 to-purple-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-3xl">
+        <!-- Header -->
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-indigo-800 mb-2">ToDo App</h1>
+            <p class="text-indigo-600">Organize suas taferas!</p>
+        </header>
+        
+        <!-- Add Task Form -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8 transition-all duration-300 hover:shadow-xl">
+            <form id="taskForm" class="flex items-center gap-3">
+                <input 
+                    type="text" 
+                    id="taskInput" 
+                    placeholder="O que você precisa fazer?" 
+                    class="flex-1 px-4 py-3 rounded-lg border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-700"
+                    autocomplete="off"
+                    required
+                >
+                <button 
+                    type="submit" 
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-300 flex items-center gap-2"
+                >
+                    <i class="fas fa-plus"></i>
+                    <span>Adicionar Tarefa</span>
+                </button>
+            </form>
+        </div>
+        
+        <!-- Task Filters -->
+        <div class="flex justify-center mb-6">
+            <div class="bg-white rounded-full shadow-md p-1 inline-flex">
+                <button 
+                    id="filterAll" 
+                    class="px-4 py-2 rounded-full font-medium text-indigo-600 bg-indigo-100 transition-all"
+                >
+                    Todas
+                </button>
+                <button 
+                    id="filterActive" 
+                    class="px-4 py-2 rounded-full font-medium text-gray-600 hover:bg-gray-100 transition-all"
+                >
+                    Ativas
+                </button>
+                <button 
+                    id="filterCompleted" 
+                    class="px-4 py-2 rounded-full font-medium text-gray-600 hover:bg-gray-100 transition-all"
+                >
+                    Completas
+                </button>
+            </div>
+        </div>
+        
+        <!-- Task List -->
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div id="taskList" class="task-list max-h-96 overflow-y-auto">
+                <!-- Empty State -->
+                <div id="emptyState" class="p-10 text-center">
+                    <div class="empty-icon text-6xl text-indigo-300 mb-4">
+                        <i class="fas fa-clipboard-list"></i>
+                    </div>
+                    <h3 class="text-xl font-medium text-gray-700 mb-2">Sem tarefas para fazer</h3>
+                    <p class="text-gray-500">Adicione sua primeira tarefa!</p>
+                </div>
+                
+                <!-- Tasks will be added here dynamically -->
+            </div>
+            
+            <!-- Task Stats -->
+            <div class="border-t border-gray-200 px-6 py-4 flex justify-between items-center text-sm text-gray-500">
+                <span id="taskCount">0 tarefas restantes</span>
+                <button id="clearCompleted" class="hover:text-indigo-600 transition-colors">
+                    Limpar Tarefas Completas
+                </button>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <footer class="mt-12 text-center text-gray-500 text-sm">
+            <p>Arraste e solte para reorganizar</p>
+            <p class="mt-2">Clique duplo na tarefa para editar</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const taskForm = document.getElementById('taskForm');
+            const taskInput = document.getElementById('taskInput');
+            const taskList = document.getElementById('taskList');
+            const emptyState = document.getElementById('emptyState');
+            const taskCount = document.getElementById('taskCount');
+            const clearCompleted = document.getElementById('clearCompleted');
+            const filterAll = document.getElementById('filterAll');
+            const filterActive = document.getElementById('filterActive');
+            const filterCompleted = document.getElementById('filterCompleted');
+            
+            let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+            let currentFilter = 'all';
+            
+            // Initialize the app
+            function init() {
+                renderTasks();
+                updateTaskCount();
+                updateEmptyState();
+                setupDragAndDrop();
+            }
+            
+            // Add new task
+            taskForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const taskText = taskInput.value.trim();
+                if (taskText) {
+                    const newTask = {
+                        id: Date.now(),
+                        text: taskText,
+                        completed: false,
+                        createdAt: new Date().toISOString()
+                    };
+                    
+                    tasks.unshift(newTask);
+                    saveTasks();
+                    renderTasks();
+                    updateTaskCount();
+                    updateEmptyState();
+                    
+                    taskInput.value = '';
+                    taskInput.focus();
+                }
+            });
+            
+            // Render tasks based on current filter
+            function renderTasks() {
+                taskList.innerHTML = '';
+                
+                let filteredTasks = tasks;
+                
+                if (currentFilter === 'active') {
+                    filteredTasks = tasks.filter(task => !task.completed);
+                } else if (currentFilter === 'completed') {
+                    filteredTasks = tasks.filter(task => task.completed);
+                }
+                
+                if (filteredTasks.length === 0) {
+                    emptyState.style.display = 'block';
+                    return;
+                }
+                
+                emptyState.style.display = 'none';
+                
+                filteredTasks.forEach(task => {
+                    const taskItem = document.createElement('div');
+                    taskItem.className = `task-item border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors`;
+                    taskItem.dataset.id = task.id;
+                    taskItem.draggable = true;
+                    
+                    taskItem.innerHTML = `
+                        <div class="px-6 py-4 flex items-center gap-3">
+                            <input 
+                                type="checkbox" 
+                                class="custom-checkbox" 
+                                ${task.completed ? 'checked' : ''}
+                            >
+                            <span class="flex-1 ${task.completed ? 'line-through text-gray-400' : 'text-gray-700'}">
+                                ${task.text}
+                            </span>
+                            <button class="text-gray-400 hover:text-red-500 transition-colors delete-btn">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    `;
+                    
+                    taskList.appendChild(taskItem);
+                });
+                
+                // Add event listeners to checkboxes and delete buttons
+                document.querySelectorAll('.custom-checkbox').forEach(checkbox => {
+                    checkbox.addEventListener('change', function() {
+                        const taskId = parseInt(this.closest('.task-item').dataset.id);
+                        const task = tasks.find(t => t.id === taskId);
+                        task.completed = this.checked;
+                        saveTasks();
+                        renderTasks();
+                        updateTaskCount();
+                    });
+                });
+                
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const taskId = parseInt(this.closest('.task-item').dataset.id);
+                        tasks = tasks.filter(t => t.id !== taskId);
+                        saveTasks();
+                        renderTasks();
+                        updateTaskCount();
+                        updateEmptyState();
+                    });
+                });
+                
+                // Enable task editing on double click
+                document.querySelectorAll('.task-item span').forEach(span => {
+                    span.addEventListener('dblclick', function() {
+                        const taskId = parseInt(this.closest('.task-item').dataset.id);
+                        const task = tasks.find(t => t.id === taskId);
+                        
+                        const input = document.createElement('input');
+                        input.type = 'text';
+                        input.value = task.text;
+                        input.className = 'flex-1 px-2 py-1 border border-indigo-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500';
+                        
+                        this.replaceWith(input);
+                        input.focus();
+                        
+                        const saveEdit = () => {
+                            const newText = input.value.trim();
+                            if (newText) {
+                                task.text = newText;
+                                saveTasks();
+                                renderTasks();
+                            } else {
+                                renderTasks();
+                            }
+                        };
+                        
+                        input.addEventListener('blur', saveEdit);
+                        input.addEventListener('keypress', function(e) {
+                            if (e.key === 'Enter') {
+                                saveEdit();
+                            }
+                        });
+                    });
+                });
+                
+                // Re-setup drag and drop after rendering
+                setupDragAndDrop();
+            }
+            
+            // Update task counter
+            function updateTaskCount() {
+                const activeTasks = tasks.filter(task => !task.completed).length;
+                taskCount.textContent = `${activeTasks} ${activeTasks === 1 ? 'item' : 'items'} left`;
+            }
+            
+            // Update empty state visibility
+            function updateEmptyState() {
+                if (tasks.length === 0) {
+                    emptyState.style.display = 'block';
+                } else {
+                    emptyState.style.display = 'none';
+                }
+            }
+            
+            // Save tasks to localStorage
+            function saveTasks() {
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+            }
+            
+            // Clear completed tasks
+            clearCompleted.addEventListener('click', function() {
+                tasks = tasks.filter(task => !task.completed);
+                saveTasks();
+                renderTasks();
+                updateTaskCount();
+                updateEmptyState();
+            });
+            
+            // Filter tasks
+            filterAll.addEventListener('click', function() {
+                currentFilter = 'all';
+                updateActiveFilter();
+                renderTasks();
+            });
+            
+            filterActive.addEventListener('click', function() {
+                currentFilter = 'active';
+                updateActiveFilter();
+                renderTasks();
+            });
+            
+            filterCompleted.addEventListener('click', function() {
+                currentFilter = 'completed';
+                updateActiveFilter();
+                renderTasks();
+            });
+            
+            // Update active filter button style
+            function updateActiveFilter() {
+                [filterAll, filterActive, filterCompleted].forEach(btn => {
+                    btn.classList.remove('bg-indigo-100', 'text-indigo-600');
+                    btn.classList.add('text-gray-600', 'hover:bg-gray-100');
+                });
+                
+                if (currentFilter === 'all') {
+                    filterAll.classList.add('bg-indigo-100', 'text-indigo-600');
+                    filterAll.classList.remove('text-gray-600', 'hover:bg-gray-100');
+                } else if (currentFilter === 'active') {
+                    filterActive.classList.add('bg-indigo-100', 'text-indigo-600');
+                    filterActive.classList.remove('text-gray-600', 'hover:bg-gray-100');
+                } else {
+                    filterCompleted.classList.add('bg-indigo-100', 'text-indigo-600');
+                    filterCompleted.classList.remove('text-gray-600', 'hover:bg-gray-100');
+                }
+            }
+            
+            // Improved drag and drop implementation
+            function setupDragAndDrop() {
+                const taskItems = document.querySelectorAll('.task-item');
+                
+                taskItems.forEach(item => {
+                    item.addEventListener('dragstart', function() {
+                        this.classList.add('dragging');
+                    });
+                    
+                    item.addEventListener('dragend', function() {
+                        this.classList.remove('dragging');
+                    });
+                });
+                
+                taskList.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    const draggingItem = document.querySelector('.dragging');
+                    if (!draggingItem) return;
+                    
+                    const afterElement = getDragAfterElement(taskList, e.clientY);
+                    if (afterElement) {
+                        taskList.insertBefore(draggingItem, afterElement);
+                    } else {
+                        taskList.appendChild(draggingItem);
+                    }
+                    
+                    // Update tasks array based on new order
+                    const newTaskItems = Array.from(taskList.querySelectorAll('.task-item'));
+                    const newTaskOrder = newTaskItems.map(item => parseInt(item.dataset.id));
+                    
+                    // Reorder tasks array to match DOM order
+                    tasks.sort((a, b) => {
+                        return newTaskOrder.indexOf(a.id) - newTaskOrder.indexOf(b.id);
+                    });
+                    
+                    saveTasks();
+                });
+                
+                function getDragAfterElement(container, y) {
+                    const draggableElements = [...container.querySelectorAll('.task-item:not(.dragging)')];
+                    
+                    return draggableElements.reduce((closest, child) => {
+                        const box = child.getBoundingClientRect();
+                        const offset = y - box.top - box.height / 2;
+                        
+                        if (offset < 0 && offset > closest.offset) {
+                            return { offset: offset, element: child };
+                        } else {
+                            return closest;
+                        }
+                    }, { offset: Number.NEGATIVE_INFINITY }).element;
+                }
+            }
+            
+            // Initialize the app
+            init();
+        });
+    </script>
+</body>
+</html>

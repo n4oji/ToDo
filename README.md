@@ -2,7 +2,7 @@
 
 ✨ Aplicativo de lista de tarefas moderno com persistência local, drag & drop e filtros intuitivos  
 
-![preview](https://via.placeholder.com/800x400/4f46e5/ffffff?text=ToDo+App+Preview)  
+![preview](https://raw.githubusercontent.com/n4oji/ToDo/refs/heads/main/image.png)  
 
 ## 🎯 Funcionalidades  
 
